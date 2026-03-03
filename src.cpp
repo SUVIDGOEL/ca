@@ -285,172 +285,178 @@ VOID early_exit(){
 
 //Instrumentation Callback-----------------------------------
 
-inline void Instruction_Count(INS ins){
+inline void Instruction_Count(BBL bbl){
      
     //cerr << "Inside inline Instruction Count function" << endl;
     //INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
     //INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR));
-    
-    ADDRINT sz = INS_Size(ins);
-    ADDRINT ip = INS_Address(ins);
-    //cerr << "IP: " << (UINT32)ip << endl; 
-    ADDRINT ip1 = (ip>>5)<<5;
-    UINT32 oper = INS_OperandCount(ins);
-    INT32 max_imm_val = 0;
-    INT32 min_imm_val = INT32_MAX;
-    if(oper){
-        for(UINT32 op = 0; op < oper; op++){
-            if(INS_OperandIsImmediate(ins, op)){
-                INT32 imm_val = INS_OperandImmediate(ins, op);
-                if(imm_val > max_imm_val)max_imm_val = imm_val;
-                if(imm_val < min_imm_val)min_imm_val = imm_val;
+    for(INS ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)){
+
+        ADDRINT sz = INS_Size(ins);
+        ADDRINT ip = INS_Address(ins);
+        //cerr << "IP: " << (UINT32)ip << endl; 
+        ADDRINT ip1 = (ip>>5)<<5;
+        UINT32 oper = INS_OperandCount(ins);
+        INT32 max_imm_val = 0;
+        INT32 min_imm_val = INT32_MAX;
+        if(oper){
+            for(UINT32 op = 0; op < oper; op++){
+                if(INS_OperandIsImmediate(ins, op)){
+                    INT32 imm_val = INS_OperandImmediate(ins, op);
+                    if(imm_val > max_imm_val)max_imm_val = imm_val;
+                    if(imm_val < min_imm_val)min_imm_val = imm_val;
+                }
             }
         }
-    }
-    UINT32 r = INS_MaxNumRRegs(ins);
-    UINT32 wr = INS_MaxNumWRegs(ins);
-   
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)instruction_analysis, IARG_ADDRINT, ip1, 
-                       IARG_ADDRINT, ip, IARG_ADDRINT, sz, IARG_UINT32, oper, 
-                       IARG_UINT32, r, IARG_UINT32, wr, IARG_ADDRINT, max_imm_val, IARG_ADDRINT, min_imm_val, IARG_END);
-    
-
-    UINT32 memOperands = INS_MemoryOperandCount(ins);
-    UINT32 read_count = 0;
-    UINT32 write_count = 0;
-    //cerr << "memop: " << memOperands << " read cnt: " << read_count << " write_count: " << write_count << endl;
-    ADDRINT mem_size_sum = 0;
-    ADDRDELTA min_mem_disp = 1e9;
-    ADDRDELTA max_mem_disp = 0;
-    if(memOperands){
-        for(UINT32 memOp=0; memOp < memOperands; memOp++){
-            
-            UINT32 op_id = INS_MemoryOperandIndexToOperandIndex(ins, memOp);
-            ADDRDELTA mem_disp = INS_OperandMemoryDisplacement(ins, op_id);
-            if(mem_disp > max_mem_disp)max_mem_disp = mem_disp;
-            if(mem_disp < min_mem_disp)min_mem_disp = mem_disp;
-            ADDRINT size = INS_MemoryOperandSize(ins, memOp);
-            mem_size_sum += size;
-            ADDRINT rem = size%((ADDRINT)4);
-            ADDRINT rounds = size>>2;
-            UINT32 cnt = (rem>0) ? rounds+1 : rounds;
-
-            if(INS_MemoryOperandIsRead(ins, memOp)){
-                read_count++;
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-                INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)data_mem_count, 
-                                         IARG_PTR, &(ic._single_data_chunk), 
-                                         IARG_PTR, &(ic._mult_data_chunk), IARG_MEMORYOP_EA, memOp, 
-                                         IARG_ADDRINT, size, IARG_END);
-
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-                INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)mem_access, IARG_UINT32, cnt, IARG_PTR, &(ic._load), IARG_END);
-            }
-            if(INS_MemoryOperandIsWritten(ins, memOp)){
-                write_count++;
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-                INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)data_mem_count, 
-                                         IARG_PTR, &(ic._single_data_chunk), 
-                                         IARG_PTR, &(ic._mult_data_chunk), IARG_MEMORYOP_EA, memOp, 
-                                         IARG_ADDRINT, size, IARG_END);
-
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-                INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)mem_access, IARG_UINT32, cnt, IARG_PTR, &(ic._store), IARG_END);
-            }
-        }
-        
+        UINT32 r = INS_MaxNumRRegs(ins);
+        UINT32 wr = INS_MaxNumWRegs(ins);
+       
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)instr_analysis_predicated, IARG_UINT32, memOperands, 
-                                     IARG_UINT32, read_count, IARG_UINT32, write_count, IARG_ADDRINT, mem_size_sum, 
-                                     IARG_ADDRINT, max_mem_disp, IARG_ADDRINT, min_mem_disp, IARG_END);
+        INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)instruction_analysis, IARG_ADDRINT, ip1, 
+                           IARG_ADDRINT, ip, IARG_ADDRINT, sz, IARG_UINT32, oper, 
+                           IARG_UINT32, r, IARG_UINT32, wr, IARG_ADDRINT, max_imm_val, IARG_ADDRINT, min_imm_val, IARG_END);
         
-    }
+
+        UINT32 memOperands = INS_MemoryOperandCount(ins);
+        UINT32 read_count = 0;
+        UINT32 write_count = 0;
+        //cerr << "memop: " << memOperands << " read cnt: " << read_count << " write_count: " << write_count << endl;
+        ADDRINT mem_size_sum = 0;
+        ADDRDELTA min_mem_disp = 1e9;
+        ADDRDELTA max_mem_disp = 0;
+        if(memOperands){
+            for(UINT32 memOp=0; memOp < memOperands; memOp++){
+                
+                UINT32 op_id = INS_MemoryOperandIndexToOperandIndex(ins, memOp);
+                ADDRDELTA mem_disp = INS_OperandMemoryDisplacement(ins, op_id);
+                if(mem_disp > max_mem_disp)max_mem_disp = mem_disp;
+                if(mem_disp < min_mem_disp)min_mem_disp = mem_disp;
+                ADDRINT size = INS_MemoryOperandSize(ins, memOp);
+                mem_size_sum += size;
+                ADDRINT rem = size%((ADDRINT)4);
+                ADDRINT rounds = size>>2;
+                UINT32 cnt = (rem>0) ? rounds+1 : rounds;
+
+                if(INS_MemoryOperandIsRead(ins, memOp)){
+                    read_count++;
+                    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
+                    INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)data_mem_count, 
+                                             IARG_PTR, &(ic._single_data_chunk), 
+                                             IARG_PTR, &(ic._mult_data_chunk), IARG_MEMORYOP_EA, memOp, 
+                                             IARG_ADDRINT, size, IARG_END);
+
+                    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
+                    INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)mem_access, IARG_UINT32, cnt, IARG_PTR, &(ic._load), IARG_END);
+                }
+                if(INS_MemoryOperandIsWritten(ins, memOp)){
+                    write_count++;
+                    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
+                    INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)data_mem_count, 
+                                             IARG_PTR, &(ic._single_data_chunk), 
+                                             IARG_PTR, &(ic._mult_data_chunk), IARG_MEMORYOP_EA, memOp, 
+                                             IARG_ADDRINT, size, IARG_END);
+
+                    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
+                    INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)mem_access, IARG_UINT32, cnt, IARG_PTR, &(ic._store), IARG_END);
+                }
+            }
+            
+            INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
+            INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)instr_analysis_predicated, IARG_UINT32, memOperands, 
+                                         IARG_UINT32, read_count, IARG_UINT32, write_count, IARG_ADDRINT, mem_size_sum, 
+                                         IARG_ADDRINT, max_mem_disp, IARG_ADDRINT, min_mem_disp, IARG_END);
+            
+        }
 
 
-    UINT32* ptr = &(ic._others);
-    
-    if(INS_Category(ins) == XED_CATEGORY_NOP){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_nop), IARG_END);
-        ptr = &(ic._nop);
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_CALL){
-        if(INS_IsDirectCall(ins)) {
-            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_dir_call), IARG_END);
-            ptr = &(ic._dir_call);
+        UINT32* ptr = &(ic._others);
+        
+        if(INS_Category(ins) == XED_CATEGORY_NOP){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_nop), IARG_END);
+            ptr = &(ic._nop);
         }
-        else {
-            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_indir_call), IARG_END);
-            ptr = &(ic._indir_call);
+        else if(INS_Category(ins) == XED_CATEGORY_CALL){
+            if(INS_IsDirectCall(ins)) {
+                //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_dir_call), IARG_END);
+                ptr = &(ic._dir_call);
+            }
+            else {
+                //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_indir_call), IARG_END);
+                ptr = &(ic._indir_call);
+            }
         }
+        else if(INS_Category(ins) == XED_CATEGORY_RET){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_ret), IARG_END);
+            ptr = &(ic._ret);
+        }
+        else if(INS_Category(ins) == XED_CATEGORY_UNCOND_BR){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_uncond_br), IARG_END);
+            ptr = &(ic._uncond_br);
+        }   
+        else if(INS_Category(ins) == XED_CATEGORY_COND_BR){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_cond_br), IARG_END);
+            ptr = &(ic._cond_br);
+        }
+        else if(INS_Category(ins) == XED_CATEGORY_LOGICAL){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_logic_op), IARG_END);
+            ptr = &(ic._logic_op);
+        }
+        else if((INS_Category(ins) == XED_CATEGORY_ROTATE) || (INS_Category(ins) == XED_CATEGORY_SHIFT)){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_rot_sht), IARG_END);
+            ptr = &(ic._rot_sht);
+        }
+        else if(INS_Category(ins) == XED_CATEGORY_FLAGOP){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_flag_op), IARG_END);
+            ptr = &(ic._flag_op);
+        }
+        else if((INS_Category(ins) == XED_CATEGORY_AVX) || (INS_Category(ins) == XED_CATEGORY_AVX2) || (INS_Category(ins) == XED_CATEGORY_AVX2GATHER) || (INS_Category(ins) == XED_CATEGORY_AVX512)){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_vect_ins), IARG_END);
+            ptr = &(ic._vect_ins);
+        }
+        else if(INS_Category(ins) == XED_CATEGORY_CMOV){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_cond_mov), IARG_END);
+            ptr = &(ic._cond_mov);
+        } 
+        else if((INS_Category(ins) == XED_CATEGORY_MMX) || (INS_Category(ins) == XED_CATEGORY_SSE)){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_mmx_sse), IARG_END);
+            ptr = &(ic._mmx_sse);
+        }
+        else if(INS_Category(ins) == XED_CATEGORY_SYSCALL){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_syscalls), IARG_END);
+            ptr = &(ic._syscalls);    
+        }
+        else if(INS_Category(ins) == XED_CATEGORY_X87_ALU){
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_fp_ins), IARG_END);
+            ptr = &(ic._fp_ins);
+        }
+        //else {
+            //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_others), IARG_END);
+            //ptr = &(ic->_others);
+        //}
+        
+        //cerr << "End of inline Instruction_Count" << '\n';
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
+        INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, ptr, IARG_END);
+        //cerr << "End 2 of inline Instruction_Count" << '\n';
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_cnt, IARG_END);
+        //cerr << "Extreme end of inline" << endl;
     }
-    else if(INS_Category(ins) == XED_CATEGORY_RET){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_ret), IARG_END);
-        ptr = &(ic._ret);
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_UNCOND_BR){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_uncond_br), IARG_END);
-        ptr = &(ic._uncond_br);
-    }   
-    else if(INS_Category(ins) == XED_CATEGORY_COND_BR){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_cond_br), IARG_END);
-        ptr = &(ic._cond_br);
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_LOGICAL){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_logic_op), IARG_END);
-        ptr = &(ic._logic_op);
-    }
-    else if((INS_Category(ins) == XED_CATEGORY_ROTATE) || (INS_Category(ins) == XED_CATEGORY_SHIFT)){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_rot_sht), IARG_END);
-        ptr = &(ic._rot_sht);
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_FLAGOP){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_flag_op), IARG_END);
-        ptr = &(ic._flag_op);
-    }
-    else if((INS_Category(ins) == XED_CATEGORY_AVX) || (INS_Category(ins) == XED_CATEGORY_AVX2) || (INS_Category(ins) == XED_CATEGORY_AVX2GATHER) || (INS_Category(ins) == XED_CATEGORY_AVX512)){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_vect_ins), IARG_END);
-        ptr = &(ic._vect_ins);
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_CMOV){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_cond_mov), IARG_END);
-        ptr = &(ic._cond_mov);
-    } 
-    else if((INS_Category(ins) == XED_CATEGORY_MMX) || (INS_Category(ins) == XED_CATEGORY_SSE)){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_mmx_sse), IARG_END);
-        ptr = &(ic._mmx_sse);
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_SYSCALL){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_syscalls), IARG_END);
-        ptr = &(ic._syscalls);    
-    }
-    else if(INS_Category(ins) == XED_CATEGORY_X87_ALU){
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_fp_ins), IARG_END);
-        ptr = &(ic._fp_ins);
-    }
-    //else {
-        //INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, &(ic->_others), IARG_END);
-        //ptr = &(ic->_others);
-    //}
-    
-    //cerr << "End of inline Instruction_Count" << '\n';
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
-    INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, ptr, IARG_END);
-    //cerr << "End 2 of inline Instruction_Count" << '\n';
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_cnt, IARG_END);
-    //cerr << "Extreme end of inline" << endl;
 }
 
 
 //Instrumentation Function
-VOID Instruction(INS ins, VOID* v){
+VOID Trace(TRACE trace, VOID* v){
     //cerr << "ic: " << icnt << endl;
     //cerr << "Inside Instruction function" << endl;
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)terminate_check, IARG_END);
-    INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)exit_routine, IARG_END);
+    for(BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)){
+        BBL_InsertIfCall(bbl, IPOINT_BEFORE, (AFUNPTR)terminate_check, IARG_END);
+        BBL_InsertThenCall(bbl, IPOINT_BEFORE, (AFUNPTR)exit_routine, IARG_END);
+        
+        Instruction_Count(bbl);   
     
+    }
+   
     //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_cnt, IARG_END);
-    Instruction_Count(ins);   
     //cerr << "Ending Instruction function" << endl;
 }
 
@@ -484,7 +490,7 @@ int main(int argc, char* argv[]){
     //ic = new inst_cnt;
     //memset(ic, 0x00, sizeof(inst_cnt));
 
-    INS_AddInstrumentFunction(Instruction, 0);
+    TRACE_AddInstrumentFunction(Trace, 0);
 
 	PIN_AddFiniFunction(Fini, 0);
 	PIN_StartProgram();
