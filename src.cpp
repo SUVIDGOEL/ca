@@ -149,7 +149,7 @@ VOID instr_analysis_predicated(UINT32 memop, UINT32 read_cnt, UINT32 write_cnt, 
 }
 
 //Analysis call for counting unique data memory chunks at 32 byte granularity
-VOID data_mem_count(UINT32* ptr1, UINT32* ptr2, ADDRINT addr, ADDRINT sz){ //CORRECT THIS CODE--------------------------------------------------------------------------------------------
+VOID data_mem_count(UINT32* ptr1, UINT32* ptr2, ADDRINT addr, ADDRINT sz){ //CORRECTED THIS CODE--------------------------------------------------------------------------------------------
     
     ADDRINT start = addr >> 5;
     ADDRINT end = (addr + sz) >> 5;
@@ -463,7 +463,7 @@ VOID Trace(TRACE trace, VOID* v){
 //Fini Function, Although it will not be used since we will terminate using exit_routine.
 VOID Fini(INT32 code, VOID* v){
     cerr << "Inside Fini Function\n";
-    exit_routine();
+    exit_routine();    
 }
 
 //Usage Function
