@@ -10,12 +10,12 @@ using namespace std;
 unordered_set<UINT32> instr_mem;
 unordered_set<UINT32> data_mem;
 vector<UINT32> inst_size(16, 0);
-vector<UINT32> inst_operands(65, 0);
-vector<UINT32> inst_read_oper(65, 0);
-vector<UINT32> inst_write_oper(65, 0);
-vector<ADDRINT> inst_memop(257, 0);
-vector<ADDRINT> inst_read_cnt(257, 0);
-vector<ADDRINT> inst_write_cnt(257, 0);
+vector<UINT32> inst_operands(8, 0);
+vector<UINT32> inst_read_oper(8, 0);
+vector<UINT32> inst_write_oper(8, 0);
+vector<ADDRINT> inst_memop(8, 0);
+vector<ADDRINT> inst_read_cnt(8, 0);
+vector<ADDRINT> inst_write_cnt(8, 0);
 ADDRINT total_data_mem=0;
 ADDRINT max_data_mem=0;
 ADDRINT mem_instr_cnt = 0;
@@ -30,7 +30,7 @@ KNOB<UINT64> KnobFastForwardCount(KNOB_MODE_WRITEONCE, "pintool", "f", "0", "spe
 ofstream* outfile;
 
 UINT64 fast_forward_count;
-UINT64 icnt = 0;
+static UINT64 icnt = 0;
 
 const char* sarr[] = {"LOADS: ", "STORES: ", "NOPS: ", "DIRECT_CALL: ", "INDIRECT_CALL: ", "RETURN: ", "UNCONDITIONAL_BRANCH: ", "CONDITIONAL_BRANCH: ", "LOGICAL: ", "ROTATE_AND_SHIFT: ", "FLAG_OP: ", 
                       "VECTOR: ", "CONDITIONAL_MOVE: ", "MMX_SSE: ", "SYSCALL: ", "FLOATING_POINT: ",  "OTHERS: ", "INST_FOOTPRINT: ", "DATA_FOOTPRINT: ", "SINGLE_CHUNK_INSTRUCTIONS: ", 
@@ -80,13 +80,13 @@ VOID ins_cnt(){
 }
 
 //Analysis Call for checking fast forwarding Condition
-ADDRINT fast_forward(){
-    return (icnt >= fast_forward_count) && (icnt < fast_forward_count + 1000000000);
+ADDRINT fast_forward_check(){
+    return (icnt >= fast_forward_count) && (icnt < fast_forward_count + (UINT64)1000000000);
 }
 
 //Analysis Call for checking termination condition
-ADDRINT terminate(){
-    return (icnt >= fast_forward_count + 1000000000);
+ADDRINT terminate_check(){
+    return (icnt >= fast_forward_count + (UINT64)1000000000);
 }
 
 //Analysis Call for incrementing count values
@@ -107,7 +107,7 @@ VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT
     //inst_read_oper[r]++;
     //inst_write_oper[wr]++;
     
-    //cerr << "Inside instruction analysis" << '\n';
+    //cerr << "Inside instruction analysis" << endl;
 
     if (sz < inst_size.size()) inst_size[sz]++;
     if (oper < inst_operands.size()) inst_operands[oper]++;
@@ -130,7 +130,7 @@ VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT
     else if(cnt==1)ic._single_inst_chunk += 1;
 }
 
-//
+
 VOID instr_analysis_predicated(UINT32 memop, UINT32 read_cnt, UINT32 write_cnt, ADDRINT mem_size_sum, ADDRDELTA max_mem_disp, ADDRDELTA min_mem_disp){
     //inst_memop[memop]++;
     //inst_read_cnt[read_cnt]++;
@@ -170,15 +170,109 @@ VOID exit_routine(){
     ic._inst_foot = (UINT32)instr_mem.size();
     ic._data_foot = (UINT32)data_mem.size();
 
-    UINT32* ptr = (UINT32*)(&ic);
-    int i = 0;
-    while(i<23){
-        *outfile << sarr[i] << *ptr << '\n';
-        i++;
-        ptr++;
+    // ── PART A: Instruction counts and percentages ──────────────────────────
+    UINT64 total = (UINT64)ic._load + ic._store + ic._nop + ic._dir_call +
+                   ic._indir_call + ic._ret + ic._uncond_br + ic._cond_br +
+                   ic._logic_op + ic._rot_sht + ic._flag_op + ic._vect_ins +
+                   ic._cond_mov + ic._mmx_sse + ic._syscalls + ic._fp_ins + ic._others;
+
+    *outfile << "===== PART A: Instruction Mix =====" << endl;
+    *outfile << "LOADS: "               << ic._load       << " (" << 100.0*ic._load/total       << "%)" << endl;
+    *outfile << "STORES: "              << ic._store      << " (" << 100.0*ic._store/total      << "%)" << endl;
+    *outfile << "NOPS: "                << ic._nop        << " (" << 100.0*ic._nop/total        << "%)" << endl;
+    *outfile << "DIRECT_CALLS: "        << ic._dir_call   << " (" << 100.0*ic._dir_call/total   << "%)" << endl;
+    *outfile << "INDIRECT_CALLS: "      << ic._indir_call << " (" << 100.0*ic._indir_call/total << "%)" << endl;
+    *outfile << "RETURNS: "             << ic._ret        << " (" << 100.0*ic._ret/total        << "%)" << endl;
+    *outfile << "UNCONDITIONAL_BR: "    << ic._uncond_br  << " (" << 100.0*ic._uncond_br/total  << "%)" << endl;
+    *outfile << "CONDITIONAL_BR: "      << ic._cond_br    << " (" << 100.0*ic._cond_br/total    << "%)" << endl;
+    *outfile << "LOGICAL: "             << ic._logic_op   << " (" << 100.0*ic._logic_op/total   << "%)" << endl;
+    *outfile << "ROTATE_AND_SHIFT: "    << ic._rot_sht    << " (" << 100.0*ic._rot_sht/total    << "%)" << endl;
+    *outfile << "FLAG_OP: "             << ic._flag_op    << " (" << 100.0*ic._flag_op/total    << "%)" << endl;
+    *outfile << "VECTOR: "              << ic._vect_ins   << " (" << 100.0*ic._vect_ins/total   << "%)" << endl;
+    *outfile << "CONDITIONAL_MOVE: "    << ic._cond_mov   << " (" << 100.0*ic._cond_mov/total   << "%)" << endl;
+    *outfile << "MMX_SSE: "             << ic._mmx_sse    << " (" << 100.0*ic._mmx_sse/total    << "%)" << endl;
+    *outfile << "SYSCALL: "             << ic._syscalls   << " (" << 100.0*ic._syscalls/total   << "%)" << endl;
+    *outfile << "FLOATING_POINT: "      << ic._fp_ins     << " (" << 100.0*ic._fp_ins/total     << "%)" << endl;
+    *outfile << "OTHERS: "              << ic._others     << " (" << 100.0*ic._others/total     << "%)" << endl;
+    *outfile << "TOTAL: "               << total << endl;
+
+    // ── PART B: CPI ─────────────────────────────────────────────────────────
+    // loads and stores cost 70 cycles, everything else costs 1 cycle
+    UINT64 total_cycles = ((UINT64)ic._load + ic._store) * 70 +
+                          ((UINT64)ic._nop + ic._dir_call + ic._indir_call + ic._ret +
+                           ic._uncond_br + ic._cond_br + ic._logic_op + ic._rot_sht +
+                           ic._flag_op + ic._vect_ins + ic._cond_mov + ic._mmx_sse +
+                           ic._syscalls + ic._fp_ins + ic._others) * 1;
+
+    double cpi = (total > 0) ? (double)total_cycles / (double)total : 0.0;
+    *outfile << endl << "===== PART B: CPI =====" << endl;
+    *outfile << "TOTAL_CYCLES: " << total_cycles << endl;
+    *outfile << "TOTAL_INSTRUCTIONS: " << total << endl;
+    *outfile << "CPI: " << cpi << endl;
+
+    // ── PART C: Memory Footprints ────────────────────────────────────────────
+    *outfile << endl << "===== PART C: Memory Footprint =====" << endl;
+    *outfile << "INSTRUCTION_CHUNKS (32B): " << ic._inst_foot << endl;
+    *outfile << "INSTRUCTION_FOOTPRINT (bytes): " << (UINT64)ic._inst_foot * 32 << endl;
+    *outfile << "DATA_CHUNKS (32B): " << ic._data_foot << endl;
+    *outfile << "DATA_FOOTPRINT (bytes): " << (UINT64)ic._data_foot * 32 << endl;
+    *outfile << "SINGLE_CHUNK_INSTRUCTIONS: " << ic._single_inst_chunk << endl;
+    *outfile << "MULTIPLE_CHUNK_INSTRUCTIONS: " << ic._mult_inst_chunk << endl;
+    *outfile << "SINGLE_DATA_CHUNK_ACCESSES: " << ic._single_data_chunk << endl;
+    *outfile << "MULTIPLE_DATA_CHUNK_ACCESSES: " << ic._mult_data_chunk << endl;
+
+    // ── PART D: ISA Properties ───────────────────────────────────────────────
+    *outfile << endl << "===== PART D: ISA Properties =====" << endl;
+
+    // D1: Instruction length distribution
+    *outfile << endl << "-- D1: Instruction Length Distribution --" << endl;
+    for(int i = 1; i < (int)inst_size.size(); i++){
+        *outfile << "LENGTH_" << i << "_BYTES: " << inst_size[i] << endl;
     }
-     
-    //outfile.close();
+
+    // D2: Operand count distribution
+    *outfile << endl << "-- D2: Operand Count Distribution --" << endl;
+    for(int i = 0; i < (int)inst_operands.size(); i++){
+        *outfile << "OPERANDS_" << i << ": " << inst_operands[i] << endl;
+    }
+
+    // D3: Instructions with exactly 2 register read operands
+    *outfile << endl << "-- D3: Instructions with 2 Register Read Operands --" << endl;
+    *outfile << "REG_READ_2: " << (2 < (int)inst_read_oper.size() ? inst_read_oper[2] : 0) << endl;
+
+    // D4: Instructions with exactly 1 register write operand
+    *outfile << endl << "-- D4: Instructions with 1 Register Write Operand --" << endl;
+    *outfile << "REG_WRITE_1: " << (1 < (int)inst_write_oper.size() ? inst_write_oper[1] : 0) << endl;
+
+    // D5: Instructions with exactly 3 memory operands
+    *outfile << endl << "-- D5: Instructions with 3 Memory Operands --" << endl;
+    *outfile << "MEM_OPERANDS_3: " << (3 < (int)inst_memop.size() ? inst_memop[3] : 0) << endl;
+
+    // D6: Instructions with exactly 1 memory read operand
+    *outfile << endl << "-- D6: Instructions with 1 Memory Read Operand --" << endl;
+    *outfile << "MEM_READ_1: " << (1 < (int)inst_read_cnt.size() ? inst_read_cnt[1] : 0) << endl;
+
+    // D7: Instructions with exactly 2 memory write operands
+    *outfile << endl << "-- D7: Instructions with 2 Memory Write Operands --" << endl;
+    *outfile << "MEM_WRITE_2: " << (2 < (int)inst_write_cnt.size() ? inst_write_cnt[2] : 0) << endl;
+
+    // D8: Max and average memory bytes touched per memory instruction
+    double avg_mem = (mem_instr_cnt > 0) ? (double)total_data_mem / (double)mem_instr_cnt : 0.0;
+    *outfile << endl << "-- D8: Memory Bytes per Memory Instruction --" << endl;
+    *outfile << "MAX_MEM_BYTES: " << max_data_mem << endl;
+    *outfile << "AVG_MEM_BYTES: " << avg_mem << endl;
+
+    // D9: Max and min immediate values
+    *outfile << endl << "-- D9: Immediate Field Values --" << endl;
+    *outfile << "MAX_IMMEDIATE: " << max_imm << endl;
+    *outfile << "MIN_IMMEDIATE: " << min_imm << endl;
+
+    // D10: Max and min displacement values
+    *outfile << endl << "-- D10: Displacement Field Values --" << endl;
+    *outfile << "MAX_DISPLACEMENT: " << max_disp << endl;
+    *outfile << "MIN_DISPLACEMENT: " << min_disp << endl;
+
+    outfile->close();
     exit(0);
     //PIN_ExitApplication(0);
 }
@@ -193,13 +287,13 @@ VOID early_exit(){
 
 inline void Instruction_Count(INS ins){
      
-
-    cerr << "Inside inline Instruction Count function" << '\n';
+    //cerr << "Inside inline Instruction Count function" << endl;
     //INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
     //INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR));
     
     ADDRINT sz = INS_Size(ins);
     ADDRINT ip = INS_Address(ins);
+    //cerr << "IP: " << (UINT32)ip << endl; 
     ADDRINT ip1 = (ip>>5)<<5;
     UINT32 oper = INS_OperandCount(ins);
     INT32 max_imm_val = 0;
@@ -216,7 +310,7 @@ inline void Instruction_Count(INS ins){
     UINT32 r = INS_MaxNumRRegs(ins);
     UINT32 wr = INS_MaxNumWRegs(ins);
    
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)instruction_analysis, IARG_ADDRINT, ip1, 
                        IARG_ADDRINT, ip, IARG_ADDRINT, sz, IARG_UINT32, oper, 
                        IARG_UINT32, r, IARG_UINT32, wr, IARG_ADDRINT, max_imm_val, IARG_ADDRINT, min_imm_val, IARG_END);
@@ -225,6 +319,7 @@ inline void Instruction_Count(INS ins){
     UINT32 memOperands = INS_MemoryOperandCount(ins);
     UINT32 read_count = 0;
     UINT32 write_count = 0;
+    //cerr << "memop: " << memOperands << " read cnt: " << read_count << " write_count: " << write_count << endl;
     ADDRINT mem_size_sum = 0;
     ADDRDELTA min_mem_disp = 1e9;
     ADDRDELTA max_mem_disp = 0;
@@ -243,29 +338,29 @@ inline void Instruction_Count(INS ins){
 
             if(INS_MemoryOperandIsRead(ins, memOp)){
                 read_count++;
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
                 INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)data_mem_count, 
                                          IARG_PTR, &(ic._single_data_chunk), 
                                          IARG_PTR, &(ic._mult_data_chunk), IARG_MEMORYOP_EA, memOp, 
                                          IARG_ADDRINT, size, IARG_END);
 
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
                 INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)mem_access, IARG_UINT32, cnt, IARG_PTR, &(ic._load), IARG_END);
             }
             if(INS_MemoryOperandIsWritten(ins, memOp)){
                 write_count++;
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
                 INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)data_mem_count, 
                                          IARG_PTR, &(ic._single_data_chunk), 
                                          IARG_PTR, &(ic._mult_data_chunk), IARG_MEMORYOP_EA, memOp, 
                                          IARG_ADDRINT, size, IARG_END);
 
-                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+                INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
                 INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)mem_access, IARG_UINT32, cnt, IARG_PTR, &(ic._store), IARG_END);
             }
         }
         
-        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+        INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
         INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)instr_analysis_predicated, IARG_UINT32, memOperands, 
                                      IARG_UINT32, read_count, IARG_UINT32, write_count, IARG_ADDRINT, mem_size_sum, 
                                      IARG_ADDRINT, max_mem_disp, IARG_ADDRINT, min_mem_disp, IARG_END);
@@ -339,22 +434,24 @@ inline void Instruction_Count(INS ins){
     //}
     
     //cerr << "End of inline Instruction_Count" << '\n';
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward, IARG_END);
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
     INS_InsertThenPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)do_cnt, IARG_PTR, ptr, IARG_END);
     //cerr << "End 2 of inline Instruction_Count" << '\n';
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_cnt, IARG_END);
-    cerr << "Extreme end of inline" <<'\n';
+    //cerr << "Extreme end of inline" << endl;
 }
 
 
 //Instrumentation Function
 VOID Instruction(INS ins, VOID* v){
-    cerr << "Inside Instruction function" << '\n';
-    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)terminate, IARG_END);
+    //cerr << "ic: " << icnt << endl;
+    //cerr << "Inside Instruction function" << endl;
+    INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)terminate_check, IARG_END);
     INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)exit_routine, IARG_END);
-
+    
+    //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_cnt, IARG_END);
     Instruction_Count(ins);   
-    cerr << "Ending Instruction function" << '\n';
+    //cerr << "Ending Instruction function" << endl;
 }
 
 //Fini Function, Although it will not be used since we will terminate using exit_routine.
@@ -376,13 +473,13 @@ int main(int argc, char* argv[]){
 	//PIN_InitSymbols();
     outfile = new ofstream(KnobOutputFile.Value().c_str());
     
-    cerr << "Inside pintool main and opened outfile" << '\n';
+    //cerr << "Inside pintool main and opened outfile" << '\n';
 
     //-f is passed in terms of billions
     fast_forward_count = KnobFastForwardCount.Value();
-    fast_forward_count *= 1000000000ULL;
+    fast_forward_count *= (UINT64)1000000000;
     
-    cout << "Fast Forward Count: " << fast_forward_count << '\n';
+    //cerr << "Fast Forward Count: " << fast_forward_count << endl;
     
     //ic = new inst_cnt;
     //memset(ic, 0x00, sizeof(inst_cnt));
