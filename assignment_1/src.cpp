@@ -73,13 +73,13 @@ inst_cnt ic = {0};
 //ANALYSIS CALLS--------------------------------------------
 
 //Analysis Call for incrementing number of instructions executed
-VOID PIN_FAST_ANALYSIS_CALL ins_cnt(){
+VOID ins_cnt(){
    
     icnt++;
 }
 
 //Analysis Call for checking fast forwarding Condition
-ADDRINT PIN_FAST_ANALYSIS_CALL fast_forward_check(){
+ADDRINT fast_forward_check(){
     return (icnt >= fast_forward_count) && (icnt < fast_forward_count + (UINT64)1000000000);
 }
 
@@ -88,18 +88,18 @@ ADDRINT fast_forward_fail(){
 }
 
 //Analysis Call for checking termination condition
-ADDRINT PIN_FAST_ANALYSIS_CALL terminate_check(){
+ADDRINT terminate_check(){
     return (icnt >= fast_forward_count + (UINT64)1000000000);
 }
 
 //Analysis Call for incrementing count values
-VOID PIN_FAST_ANALYSIS_CALL do_cnt(UINT32* c){
+VOID do_cnt(UINT32* c){
     //cout << "Inside do_cnt function" << '\n';
     (*c)++;
 }
 
 //Analysis Call for counting number of 4 byte data memory read or writes
-VOID PIN_FAST_ANALYSIS_CALL mem_access(UINT32 cnt, UINT32* c){
+VOID mem_access(UINT32 cnt, UINT32* c){
     (*c)+=cnt;
 }
 
