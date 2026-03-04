@@ -70,12 +70,8 @@ inst_cnt ic = {0};
 //ANALYSIS CALLS--------------------------------------------
 
 //Analysis Call for incrementing number of instructions executed
-VOID ins_cnt(){
-    //cout << "Incrementing Instruction" << '\n';
-    //if (first) {
-        //cerr << "Inside ins_cnt" << '\n';
-        //first = false;
-    //}
+VOID PIN_FAST_ANALYSIS_CALL ins_cnt(){
+   
     icnt++;
 }
 
