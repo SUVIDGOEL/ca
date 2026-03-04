@@ -84,6 +84,10 @@ ADDRINT fast_forward_check(){
     return (icnt >= fast_forward_count) && (icnt < fast_forward_count + (UINT64)1000000000);
 }
 
+ADDRINT fast_forward_fail(){
+    return (icnt < fast_forward_count);
+}
+
 //Analysis Call for checking termination condition
 ADDRINT terminate_check(){
     return (icnt >= fast_forward_count + (UINT64)1000000000);
@@ -236,25 +240,35 @@ VOID exit_routine(){
         *outfile << "OPERANDS_" << i << ": " << inst_operands[i] << endl;
     }
 
-    // D3: Instructions with exactly 2 register read operands
-    *outfile << endl << "-- D3: Instructions with 2 Register Read Operands --" << endl;
-    *outfile << "REG_READ_2: " << (2 < (int)inst_read_oper.size() ? inst_read_oper[2] : 0) << endl;
+    // D3: Register read operand distribution
+    *outfile << endl << "-- D3: Register Read Operand Distribution --" << endl;
+    for(int i = 0; i < (int)inst_read_oper.size(); i++){
+        *outfile << "REG_READ_" << i << ": " << inst_read_oper[i] << endl;
+    }
 
-    // D4: Instructions with exactly 1 register write operand
-    *outfile << endl << "-- D4: Instructions with 1 Register Write Operand --" << endl;
-    *outfile << "REG_WRITE_1: " << (1 < (int)inst_write_oper.size() ? inst_write_oper[1] : 0) << endl;
+    // D4: Register write operand distribution
+    *outfile << endl << "-- D4: Register Write Operand Distribution --" << endl;
+    for(int i = 0; i < (int)inst_write_oper.size(); i++){
+        *outfile << "REG_WRITE_" << i << ": " << inst_write_oper[i] << endl;
+    }
 
-    // D5: Instructions with exactly 3 memory operands
-    *outfile << endl << "-- D5: Instructions with 3 Memory Operands --" << endl;
-    *outfile << "MEM_OPERANDS_3: " << (3 < (int)inst_memop.size() ? inst_memop[3] : 0) << endl;
+    // D5: Memory operand distribution
+    *outfile << endl << "-- D5: Memory Operand Distribution --" << endl;
+    for(int i = 0; i < (int)inst_memop.size(); i++){
+        *outfile << "MEM_OPERANDS_" << i << ": " << inst_memop[i] << endl;
+    }
 
-    // D6: Instructions with exactly 1 memory read operand
-    *outfile << endl << "-- D6: Instructions with 1 Memory Read Operand --" << endl;
-    *outfile << "MEM_READ_1: " << (1 < (int)inst_read_cnt.size() ? inst_read_cnt[1] : 0) << endl;
+    // D6: Memory read operand distribution
+    *outfile << endl << "-- D6: Memory Read Operand Distribution --" << endl;
+    for(int i = 0; i < (int)inst_read_cnt.size(); i++){
+        *outfile << "MEM_READ_" << i << ": " << inst_read_cnt[i] << endl;
+    }
 
-    // D7: Instructions with exactly 2 memory write operands
-    *outfile << endl << "-- D7: Instructions with 2 Memory Write Operands --" << endl;
-    *outfile << "MEM_WRITE_2: " << (2 < (int)inst_write_cnt.size() ? inst_write_cnt[2] : 0) << endl;
+    // D7: Memory write operand distribution
+    *outfile << endl << "-- D7: Memory Write Operand Distribution --" << endl;
+    for(int i = 0; i < (int)inst_write_cnt.size(); i++){
+        *outfile << "MEM_WRITE_" << i << ": " << inst_write_cnt[i] << endl;
+    }
 
     // D8: Max and average memory bytes touched per memory instruction
     double avg_mem = (mem_instr_cnt > 0) ? (double)total_data_mem / (double)mem_instr_cnt : 0.0;
@@ -324,7 +338,7 @@ inline void Instruction_Count(BBL bbl){
         ADDRINT mem_size_sum = 0;
         ADDRDELTA min_mem_disp = 1e9;
         ADDRDELTA max_mem_disp = 0;
-        if(memOperands){
+        if(memOperands >= 0){
             for(UINT32 memOp=0; memOp < memOperands; memOp++){
                 
                 UINT32 op_id = INS_MemoryOperandIndexToOperandIndex(ins, memOp);
@@ -453,7 +467,6 @@ VOID Trace(TRACE trace, VOID* v){
         BBL_InsertThenCall(bbl, IPOINT_BEFORE, (AFUNPTR)exit_routine, IARG_END);
         
         Instruction_Count(bbl);   
-    
     }
    
     //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)ins_cnt, IARG_END);
