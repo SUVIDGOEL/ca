@@ -7,8 +7,11 @@
 #include<vector>
 using namespace std;
 
-unordered_set<UINT32> instr_mem;
-unordered_set<UINT32> data_mem;
+vector<bool> instr_mem(134217730, false);
+vector<bool> data_mem(134217730, false);
+UINT32 instr_mem_size = 0;
+UINT32 data_mem_size = 0;
+
 vector<UINT32> inst_size(16, 0);
 vector<UINT32> inst_operands(8, 0);
 vector<UINT32> inst_read_oper(8, 0);
@@ -109,10 +112,10 @@ VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT
     
     //cerr << "Inside instruction analysis" << endl;
 
-    if (sz < inst_size.size()) inst_size[sz]++;
-    if (oper < inst_operands.size()) inst_operands[oper]++;
-    if (r < inst_read_oper.size()) inst_read_oper[r]++;
-    if (wr < inst_write_oper.size()) inst_write_oper[wr]++;
+    inst_size[sz]++;
+    inst_operands[oper]++;
+    inst_read_oper[r]++;
+    inst_write_oper[wr]++;
 
     ADDRINT start = ip1 >> 5;
     ADDRINT end = (ip+sz)>>5;
@@ -121,8 +124,9 @@ VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT
     if(max_imm < max_imm_val) max_imm = max_imm_val;
     if(min_imm > min_imm_val) min_imm = min_imm_val;
     for(ADDRINT i = start; i <= end; i++){
-        if(instr_mem.find(i)==instr_mem.end()){
-            instr_mem.insert(i);
+        if(!instr_mem[i]){
+            instr_mem[i]=true;
+            instr_mem_size++;
             cnt++;
         }
     }
@@ -136,9 +140,9 @@ VOID instr_analysis_predicated(UINT32 memop, UINT32 read_cnt, UINT32 write_cnt, 
     //inst_read_cnt[read_cnt]++;
     //inst_write_cnt[write_cnt]++;
     
-    if(memop < inst_memop.size())   inst_memop[memop]++;
-    if(read_cnt < inst_read_cnt.size())  inst_read_cnt[read_cnt]++;
-    if(write_cnt < inst_write_cnt.size()) inst_write_cnt[write_cnt]++;
+    inst_memop[memop]++;
+    inst_read_cnt[read_cnt]++;
+    inst_write_cnt[write_cnt]++;
 
     total_data_mem += mem_size_sum;
     if(mem_size_sum > max_data_mem)max_data_mem = mem_size_sum;
@@ -155,8 +159,9 @@ VOID data_mem_count(UINT32* ptr1, UINT32* ptr2, ADDRINT addr, ADDRINT sz){ //COR
     ADDRINT end = (addr + sz) >> 5;
     ADDRINT cnt = 0;
     for(ADDRINT i=start; i <= end; i++){
-        if(data_mem.find(i)==data_mem.end()){
-            data_mem.insert(i);
+        if(!data_mem[i]){
+            data_mem[i]=true;
+            data_mem_size++;
             cnt++;
         }
     }
@@ -167,8 +172,8 @@ VOID data_mem_count(UINT32* ptr1, UINT32* ptr2, ADDRINT addr, ADDRINT sz){ //COR
 
 //Analysis Call for terminating the pintool after 1000,000,000 have been instrumented or benchmark application finishes
 VOID exit_routine(){
-    ic._inst_foot = (UINT32)instr_mem.size();
-    ic._data_foot = (UINT32)data_mem.size();
+    ic._inst_foot = instr_mem_size;
+    ic._data_foot = data_mem_size;
 
     // ── PART A: Instruction counts and percentages ──────────────────────────
     UINT64 total = (UINT64)ic._load + ic._store + ic._nop + ic._dir_call +
