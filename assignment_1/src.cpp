@@ -127,8 +127,8 @@ VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT
         if(!instr_mem[i]){
             instr_mem[i]=true;
             instr_mem_size++;
-            cnt++;
         }
+        cnt++;
     }
     if(cnt>1)ic._mult_inst_chunk += 1;
     else if(cnt==1)ic._single_inst_chunk += 1;
@@ -162,8 +162,8 @@ VOID data_mem_count(UINT32* ptr1, UINT32* ptr2, ADDRINT addr, ADDRINT sz){ //COR
         if(!data_mem[i]){
             data_mem[i]=true;
             data_mem_size++;
-            cnt++;
         }
+        cnt++;
     }
     if(cnt > 1) (*ptr2)++;
     else if(cnt==1) (*ptr1)++;
