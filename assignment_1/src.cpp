@@ -221,10 +221,17 @@ VOID exit_routine(){
     *outfile << "INSTRUCTION_FOOTPRINT (bytes): " << (UINT64)ic._inst_foot * 32 << endl;
     *outfile << "DATA_CHUNKS (32B): " << ic._data_foot << endl;
     *outfile << "DATA_FOOTPRINT (bytes): " << (UINT64)ic._data_foot * 32 << endl;
-    *outfile << "SINGLE_CHUNK_INSTRUCTIONS: " << ic._single_inst_chunk << endl;
-    *outfile << "MULTIPLE_CHUNK_INSTRUCTIONS: " << ic._mult_inst_chunk << endl;
-    *outfile << "SINGLE_DATA_CHUNK_ACCESSES: " << ic._single_data_chunk << endl;
-    *outfile << "MULTIPLE_DATA_CHUNK_ACCESSES: " << ic._mult_data_chunk << endl;
+
+    double prop_single_inst = (double)ic._single_inst_chunk/((double)ic._single_inst_chunk + (double)ic._mult_inst_chunk);
+    double prop_multi_inst = (double)1.0 - prop_single_inst;
+    double prop_single_data = (double)ic._single_data_chunk/((double)ic._single_data_chunk + (double)ic._mult_data_chunk);
+    double prop_multi_data = (double)1.0 - prop_single_data;
+
+
+    *outfile << "SINGLE_CHUNK_INSTRUCTIONS: " << prop_single_inst << endl;
+    *outfile << "MULTIPLE_CHUNK_INSTRUCTIONS: " << prop_multi_inst << endl;
+    *outfile << "SINGLE_DATA_CHUNK_ACCESSES: " << prop_single_data << endl;
+    *outfile << "MULTIPLE_DATA_CHUNK_ACCESSES: " << prop_multi_data << endl;
 
     // ── PART D: ISA Properties ───────────────────────────────────────────────
     *outfile << endl << "===== PART D: ISA Properties =====" << endl;
@@ -490,7 +497,7 @@ INT32 Usage(){
 int main(int argc, char* argv[]){
 	if(PIN_Init(argc, argv)) return Usage();
 
-	//PIN_InitSymbols();
+    //PIN_InitSymbols();
     outfile = new ofstream(KnobOutputFile.Value().c_str());
     
     //cerr << "Inside pintool main and opened outfile" << '\n';
@@ -506,8 +513,8 @@ int main(int argc, char* argv[]){
 
     TRACE_AddInstrumentFunction(Trace, 0);
 
-	PIN_AddFiniFunction(Fini, 0);
-	PIN_StartProgram();
+    PIN_AddFiniFunction(Fini, 0);
+    PIN_StartProgram();
 	
     return 0;
 }
