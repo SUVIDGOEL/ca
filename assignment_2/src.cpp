@@ -6,8 +6,6 @@
 #include<utility>
 #include<cstring>
 #include<map>
-#include<vector>
-#include<bitset>
 using namespace std;
 
 map<pair<ADDRINT, ADDRINT>, UINT64> loop_cnt;
@@ -58,7 +56,7 @@ VOID Fini(INT32 code, VOID* v){
 
 
 INT32 Usage(){
-    cerr << "This Pintool tries to find the RSA key from the binary implementation of binary exponentiation algorithm" << endl;
+    cerr << "This Pintool tries to find the RSA key from the 64-bit executable of binary exponentiation algorithm" << endl;
     cerr << KNOB_BASE::StringKnobSummary() << endl;
     return -1;
 }
