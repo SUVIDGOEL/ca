@@ -42,7 +42,7 @@ VOID Fini(INT32 code, VOID* v){
     for(auto u : if_cnt){
         ADDRINT pc = u.first;
         for(auto v : loop_cnt){
-            if((v.second==(UINT64)63) && (v.first.first < pc) && (v.first.second > pc)){
+            if((v.second==(UINT64)63) && (v.first.first < pc) && (v.first.second >= pc)){
                 for (char c : u.second) key_val = (key_val << 1) | (c == '1' ? 1ULL : 0ULL);
                 outfile << key_val << endl;
                 outfile.close();
