@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #pragma GCC optimize("O3,unroll-loops")
+#pragma GCC target("bmi,bmi2")
 
 #define AES_MAXNR 14
 #define BLOCK_SIZE 16
@@ -11,6 +12,7 @@ typedef struct {
     unsigned int rd_key[4 * (AES_MAXNR + 1)];
     int rounds;
 } AES_KEY_Custom;
+
 
 
 static inline __attribute__((always_inline)) uint8_t gf_sq(uint8_t x) {
