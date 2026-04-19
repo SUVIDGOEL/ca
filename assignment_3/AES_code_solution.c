@@ -1,7 +1,9 @@
+#include <immintrin.h>  
 #include <openssl/aes.h>
 #include <stdint.h>
 
 #pragma GCC optimize("O3,unroll-loops")
+#pragma GCC target("sse2,ssse3,bmi,bmi2")
 
 #define AES_MAXNR 14
 #define BLOCK_SIZE 16
@@ -11,6 +13,7 @@ typedef struct {
     unsigned int rd_key[4 * (AES_MAXNR + 1)];
     int rounds;
 } AES_KEY_Custom;
+
 
 
 static inline __attribute__((always_inline)) uint8_t gf_sq(uint8_t x) {
@@ -83,18 +86,27 @@ static inline __attribute__((always_inline)) uint32_t sub_word(uint32_t x){
 
 //2. Shift Rows Step
 
-static inline __attribute__((always_inline)) void shift_rows(uint32_t* s){
-    uint32_t c0 = s[0];
-    uint32_t c1 = s[1];
-    uint32_t c2 = s[2];
-    uint32_t c3 = s[3];
+//static inline __attribute__((always_inline)) void shift_rows(uint32_t* s){
+//    uint32_t c0 = s[0];
+//    uint32_t c1 = s[1];
+//    uint32_t c2 = s[2];
+//    uint32_t c3 = s[3];
     
-    s[0] = (c0 & 0x000000ff) | (c1 & 0x0000ff00) | (c2 & 0x00ff0000) | (c3 & 0xff000000);
-    s[1] = (c1 & 0x000000ff) | (c2 & 0x0000ff00) | (c3 & 0x00ff0000) | (c0 & 0xff000000);
-    s[2] = (c2 & 0x000000ff) | (c3 & 0x0000ff00) | (c0 & 0x00ff0000) | (c1 & 0xff000000);
-    s[3] = (c3 & 0x000000ff) | (c0 & 0x0000ff00) | (c1 & 0x00ff0000) | (c2 & 0xff000000);
+//    s[0] = (c0 & 0x000000ff) | (c1 & 0x0000ff00) | (c2 & 0x00ff0000) | (c3 & 0xff000000);
+//    s[1] = (c1 & 0x000000ff) | (c2 & 0x0000ff00) | (c3 & 0x00ff0000) | (c0 & 0xff000000);
+//    s[2] = (c2 & 0x000000ff) | (c3 & 0x0000ff00) | (c0 & 0x00ff0000) | (c1 & 0xff000000);
+//    s[3] = (c3 & 0x000000ff) | (c0 & 0x0000ff00) | (c1 & 0x00ff0000) | (c2 & 0xff000000);
 
-}
+//}
+
+#define shift_rows_scalar(c0,c1,c2,c3) do { \
+    uint32_t _t0,_t1,_t2,_t3;              \
+    _t0=(c0&0x000000FF)|(c1&0x0000FF00)|(c2&0x00FF0000)|(c3&0xFF000000); \
+    _t1=(c1&0x000000FF)|(c2&0x0000FF00)|(c3&0x00FF0000)|(c0&0xFF000000); \
+    _t2=(c2&0x000000FF)|(c3&0x0000FF00)|(c0&0x00FF0000)|(c1&0xFF000000); \
+    _t3=(c3&0x000000FF)|(c0&0x0000FF00)|(c1&0x00FF0000)|(c2&0xFF000000); \
+    c0=_t0; c1=_t1; c2=_t2; c3=_t3;       \
+} while(0)
 
 //3.Mix Columns Step
 
@@ -114,12 +126,17 @@ static inline __attribute__((always_inline)) uint32_t mix_col(uint32_t w){
     return (uint32_t)n0 | ((uint32_t)n1<<8) | ((uint32_t)n2<<16) | ((uint32_t)n3<<24);
 }
 
-static inline __attribute__((always_inline)) void mix_columns(uint32_t s[4]){
-    s[0] = mix_col(s[0]);
-    s[1] = mix_col(s[1]);
-    s[2] = mix_col(s[2]);
-    s[3] = mix_col(s[3]);
-}
+//static inline __attribute__((always_inline)) void mix_columns(uint32_t s0, uint32_t s1, uint32_t s2, uint32_t s3){
+//    s0 = mix_col(s0);
+//    s1 = mix_col(s1);
+//    s2 = mix_col(s2);
+//    s3 = mix_col(s3);
+//}
+
+#define mix_columns_scalar(c0,c1,c2,c3) do { \
+    c0=mix_col(c0); c1=mix_col(c1);          \
+    c2=mix_col(c2); c3=mix_col(c3);          \
+} while(0)
 
 
 /* ========= AES Encryption ========= */
@@ -130,61 +147,216 @@ void AES_encrypt_custom(const unsigned char *plaintext,
 
     //Write your code here (Note: Do not use ISA specific AES instruction that results in 0 marks)
         
+    __m128i state_v = _mm_loadu_si128((const __m128i*)plaintext);
+    __m128i key_v   = _mm_loadu_si128((const __m128i*)enc_key->rd_key);
 
-    uint32_t s[4];
-    s[0] = ((uint32_t)plaintext[0] | (uint32_t)plaintext[1]<<8 | (uint32_t)plaintext[2]<<16 | (uint32_t)plaintext[3]<<24);
-    s[1] = ((uint32_t)plaintext[4] | (uint32_t)plaintext[5]<<8 | (uint32_t)plaintext[6]<<16 | (uint32_t)plaintext[7]<<24);
-    s[2] = ((uint32_t)plaintext[8] | (uint32_t)plaintext[9]<<8 | (uint32_t)plaintext[10]<<16 | (uint32_t)plaintext[11]<<24);
-    s[3] = ((uint32_t)plaintext[12] | (uint32_t)plaintext[13]<<8 | (uint32_t)plaintext[14]<<16 | (uint32_t)plaintext[15]<<24);
-  
-    s[0] = s[0]^(enc_key->rd_key[0]);
-    s[1] = s[1]^(enc_key->rd_key[1]);
-    s[2] = s[2]^(enc_key->rd_key[2]);
-    s[3] = s[3]^(enc_key->rd_key[3]);
+    state_v = _mm_xor_si128(state_v, key_v);
+
+    uint32_t s0 = _mm_extract_epi32(state_v, 0);
+    uint32_t s1 = _mm_extract_epi32(state_v, 1);
+    uint32_t s2 = _mm_extract_epi32(state_v, 2);
+    uint32_t s3 = _mm_extract_epi32(state_v, 3);
     
-    for(int i=1;i<=9;i++){
-        //1. Sub Bytes
-        s[0] = sub_word(s[0]);
-        s[1] = sub_word(s[1]);
-        s[2] = sub_word(s[2]);
-        s[3] = sub_word(s[3]);
-
-        //2. Shift Rows
-        shift_rows(s);
-
-        //3.Column Mix   Just implement the Column Fix Step
-        mix_columns(s);
-
-        //4.Add Round Key
-        
-        s[0] ^= enc_key->rd_key[(i<<2)^0];
-        s[1] ^= enc_key->rd_key[(i<<2)^1];
-        s[2] ^= enc_key->rd_key[(i<<2)^2];
-        s[3] ^= enc_key->rd_key[(i<<2)^3];
-        
-    }
-
+    //1ST
     //1. Sub Bytes
-    s[0] = sub_word(s[0]);
-    s[1] = sub_word(s[1]);
-    s[2] = sub_word(s[2]);
-    s[3] = sub_word(s[3]);
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
 
     //2. Shift Rows
-    shift_rows(s);
+    shift_rows_scalar(s0,s1,s2,s3);
 
-    //4.Add Round Key 
-    s[0] ^= enc_key->rd_key[40];
-    s[1] ^= enc_key->rd_key[41];
-    s[2] ^= enc_key->rd_key[42];
-    s[3] ^= enc_key->rd_key[43];
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[4]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+        
+    //2ND
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[8]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3); 
+    
+    //3RD
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[12]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+
+    //4TH
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[16]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+    
+    //5TH
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[20]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+    
+    //6TH
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[24]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+    
+    //7TH
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[28]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+    
+    //8TH
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[32]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+    
+    //9TH
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //3.Column Mix   Just implement the Column Fix Step
+    mix_columns_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[36]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
 
 
-    uint32_t *dest = (uint32_t *)ciphertext;
-    dest[0] = s[0];
-    dest[1] = s[1];
-    dest[2] = s[2];
-    dest[3] = s[3];
+    //1. Sub Bytes
+    s0 = sub_word(s0);
+    s1 = sub_word(s1);
+    s2 = sub_word(s2);
+    s3 = sub_word(s3);
+
+    //2. Shift Rows
+    shift_rows_scalar(s0,s1,s2,s3);
+
+    //4.Add Round Key
+    key_v = _mm_loadu_si128((const __m128i*)&enc_key->rd_key[40]);
+    s0 ^= _mm_extract_epi32(key_v, 0);
+    s1 ^= _mm_extract_epi32(key_v, 1);
+    s2 ^= _mm_extract_epi32(key_v, 2);
+    s3 ^= _mm_extract_epi32(key_v, 3);
+
+    state_v = _mm_set_epi32(s3, s2, s1, s0);
+    _mm_storeu_si128((__m128i*)ciphertext, state_v);
 
 }
 
