@@ -22,8 +22,8 @@ vector<ADDRINT> inst_write_cnt(256, 0);
 ADDRINT total_data_mem=0;
 ADDRINT max_data_mem=0;
 ADDRINT mem_instr_cnt = 0;
-INT32 max_imm = INT_MIN;
-INT32 min_imm = INT_MAX;
+ADDRINT max_imm = INT_MIN;
+ADDRINT min_imm = INT_MAX;
 ADDRDELTA max_disp = INT_MIN;
 ADDRDELTA min_disp = INT_MAX;
 
@@ -104,7 +104,7 @@ VOID mem_access(UINT32 cnt, UINT32* c){
 }
 
 //Analysis Calls for counting unique instruction memory chunks at 32 byte granularity
-VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT32 r, UINT32 wr, INT32 max_imm_val, INT32 min_imm_val){
+VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT32 r, UINT32 wr, ADDRINT max_imm_val, ADDRINT min_imm_val){
     //inst_size[sz]++;
     //inst_operands[oper]++;
     //inst_read_oper[r]++;
@@ -112,10 +112,10 @@ VOID instruction_analysis(ADDRINT ip1, ADDRINT ip, ADDRINT sz, UINT32 oper, UINT
     
     //cerr << "Inside instruction analysis" << endl;
 
-    inst_size[sz]++;
-    inst_operands[oper]++;
-    inst_read_oper[r]++;
-    inst_write_oper[wr]++;
+    if(sz<256)inst_size[sz]++;
+    if(oper<256)inst_operands[oper]++;
+    if(r<256)inst_read_oper[r]++;
+    if(wr<256)inst_write_oper[wr]++;
 
     ADDRINT start = ip1 >> 5;
     ADDRINT end = (ip+sz)>>5;
@@ -140,9 +140,9 @@ VOID instr_analysis_predicated(UINT32 memop, UINT32 read_cnt, UINT32 write_cnt, 
     //inst_read_cnt[read_cnt]++;
     //inst_write_cnt[write_cnt]++;
     
-    inst_memop[memop]++;
-    inst_read_cnt[read_cnt]++;
-    inst_write_cnt[write_cnt]++;
+    if(memop<256)inst_memop[memop]++;
+    if(read_cnt<256)inst_read_cnt[read_cnt]++;
+    if(write_cnt<256)inst_write_cnt[write_cnt]++;
 
     total_data_mem += mem_size_sum;
     if(mem_size_sum > max_data_mem)max_data_mem = mem_size_sum;
@@ -338,7 +338,7 @@ inline void Instruction_Count(BBL bbl){
         INS_InsertIfCall(ins, IPOINT_BEFORE, (AFUNPTR)fast_forward_check, IARG_END);
         INS_InsertThenCall(ins, IPOINT_BEFORE, (AFUNPTR)instruction_analysis, IARG_ADDRINT, ip1, 
                            IARG_ADDRINT, ip, IARG_ADDRINT, sz, IARG_UINT32, oper, 
-                           IARG_UINT32, r, IARG_UINT32, wr, IARG_ADDRINT, max_imm_val, IARG_ADDRINT, min_imm_val, IARG_END);
+                           IARG_UINT32, r, IARG_UINT32, wr, IARG_ADDRINT, (ADDRINT)max_imm_val, IARG_ADDRINT, (ADDRINT)min_imm_val, IARG_END);
         
 
         UINT32 memOperands = INS_MemoryOperandCount(ins);
